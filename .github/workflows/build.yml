@@ -21,27 +21,54 @@ jobs:
           brew install xcodegen
           xcodegen generate
 
+      - name: Resolve Swift packages
+        run: |
+          set -euo pipefail
+          xcrun xcodebuild -resolvePackageDependencies \
+            -project YueduReader.xcodeproj \
+            -scheme YueduReader \
+            -clonedSourcePackagesDirPath "$RUNNER_TEMP/SourcePackages"
+
       - name: Build without code signing
         run: |
           set -o pipefail
-          xcodebuild -project YueduReader.xcodeproj \
+          log="$RUNNER_TEMP/xcodebuild.log"
+          summary="$RUNNER_TEMP/xcodebuild-summary.txt"
+          set +e
+          xcrun xcodebuild \
+            -project YueduReader.xcodeproj \
             -scheme YueduReader \
-            -configuration Release \
-            -sdk iphoneos \
             -destination 'generic/platform=iOS' \
+            -configuration Release \
             -derivedDataPath "$RUNNER_TEMP/DerivedData" \
+            -clonedSourcePackagesDirPath "$RUNNER_TEMP/SourcePackages" \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY='' \
             DEVELOPMENT_TEAM='' \
-            build 2>&1 | tee "$RUNNER_TEMP/xcodebuild.log" || (cat "$RUNNER_TEMP/xcodebuild.log" && exit 1)
+            clean build 2>&1 | tee "$log"
+          status=${PIPESTATUS[0]}
+          {
+            echo '## xcodebuild diagnostics'
+            echo
+            echo "xcodebuild exit code: $status"
+            echo
+            echo '### Errors'
+            grep -E '(^|[[:space:]])error:' "$log" || true
+            echo
+            echo '### Last 100 log lines'
+            tail -n 100 "$log"
+          } | tee "$summary" >> "$GITHUB_STEP_SUMMARY"
+          exit "$status"
 
       - name: Upload build log on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: xcodebuild-log
-          path: ${{ runner.temp }}/xcodebuild.log
+          path: |
+            ${{ runner.temp }}/xcodebuild.log
+            ${{ runner.temp }}/xcodebuild-summary.txt
           if-no-files-found: ignore
 
       - name: Package unsigned IPA
