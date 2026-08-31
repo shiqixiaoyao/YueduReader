@@ -1,10 +1,11 @@
 import SwiftUI
 import SwiftData
 import UniformTypeIdentifiers
+import Foundation
 
 struct SourceManagerView: View {
     @Environment(\.modelContext) private var modelContext: ModelContext
-    @Query(sort: \BookSource.name) private var sources: [BookSource]
+    @Query(sort: [SortDescriptor(\BookSource.name)]) private var sources: [BookSource]
     @State private var showingAddSource = false
     @State private var showingFileImporter = false
     @State private var importMessage: String?
@@ -23,14 +24,19 @@ struct SourceManagerView: View {
                         ForEach(sources) { source in
                             Toggle(source.name, isOn: Binding(get: { source.enabled }, set: { source.enabled = $0 }))
                         }
-                        .onDelete { offsets in offsets.map { sources[$0] }.forEach(modelContext.delete); try? modelContext.save() }
+                        .onDelete { offsets in
+                            for offset in offsets { modelContext.delete(sources[offset]) }
+                            try? modelContext.save()
+                        }
                     }
                 }
             }
             .navigationTitle("书源管理")
             .toolbar { ToolbarItem(placement: .topBarTrailing) { Button { showingAddSource = true } label: { Image(systemName: "plus") } } }
             .sheet(isPresented: $showingAddSource) { AddSourceView() }
-            .fileImporter(isPresented: $showingFileImporter, allowedContentTypes: [.json], allowsMultipleSelection: true) { importSources(from: $0) }
+            .fileImporter(isPresented: $showingFileImporter, allowedContentTypes: [.json], allowsMultipleSelection: true) { result in
+                importSources(from: result)
+            }
             .alert("本地导入", isPresented: Binding(get: { importMessage != nil }, set: { if !$0 { importMessage = nil } })) {
                 Button("确定") { importMessage = nil }
             } message: { Text(importMessage ?? "") }
@@ -39,14 +45,22 @@ struct SourceManagerView: View {
 
     private func importSources(from result: Result<[URL], Error>) {
         do {
-            let urls = try result.get(); var imported = 0
+            let urls = try result.get()
+            var imported = 0
             for url in urls {
-                let access = url.startAccessingSecurityScopedResource(); defer { if access { url.stopAccessingSecurityScopedResource() } }
-                for item in try BookSourceFileParser.parse(data: Data(contentsOf: url)) { modelContext.insert(item); imported += 1 }
+                let hasAccess = url.startAccessingSecurityScopedResource()
+                defer { if hasAccess { url.stopAccessingSecurityScopedResource() } }
+                let data = try Data(contentsOf: url)
+                for source in try BookSourceFileParser.parse(data: data) {
+                    modelContext.insert(source)
+                    imported += 1
+                }
             }
             try modelContext.save()
             importMessage = imported > 0 ? "已成功导入 \(imported) 个书源。" : "文件中没有找到可导入的书源。"
-        } catch { importMessage = "导入失败：\(error.localizedDescription)" }
+        } catch {
+            importMessage = "导入失败：\(error.localizedDescription)"
+        }
     }
 }
 
@@ -66,6 +80,12 @@ private enum BookSourceFileParser {
             return BookSource(name: name, baseURL: baseURL, searchURL: searchURL, enabled: (item["enabled"] as? Bool) ?? true)
         }
     }
-    private static func string(_ item: [String: Any], keys: [String]) -> String? { for key in keys { if let value = item[key] as? String, !value.isEmpty { return value } }; return nil }
-    private enum ImportError: LocalizedError { case invalidFormat; var errorDescription: String? { "JSON 格式无效，请选择书源 JSON 文件。" } }
+    private static func string(_ item: [String: Any], keys: [String]) -> String? {
+        for key in keys { if let value = item[key] as? String, !value.isEmpty { return value } }
+        return nil
+    }
+    private enum ImportError: LocalizedError {
+        case invalidFormat
+        var errorDescription: String? { "JSON 格式无效，请选择书源 JSON 文件。" }
+    }
 }
