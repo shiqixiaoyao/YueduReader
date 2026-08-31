@@ -28,6 +28,7 @@ targets:
         SWIFT_EMIT_APP_INTENTS_METADATA: NO
         ENABLE_APP_INTENTS: NO
         INFOPLIST_KEY_CFBundleDisplayName: YueduReader
+        INFOPLIST_KEY_NSAppTransportSecurity_NSAllowsArbitraryLoads: YES
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
         INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
         TARGETED_DEVICE_FAMILY: "1,2"
