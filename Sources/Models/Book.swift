@@ -9,10 +9,15 @@ final class Book {
     var sourceName: String
     var lastReadChapter: Int
     var lastReadAt: Date?
-    @Relationship(deleteRule: .cascade) var chapters: [Chapter] = []
+    @Relationship(deleteRule: .cascade, inverse: \Chapter.book)
+    var chapters: [Chapter] = []
 
     init(title: String, author: String = "", coverURL: String = "", sourceName: String = "") {
-        self.title = title; self.author = author; self.coverURL = coverURL; self.sourceName = sourceName
+        self.title = title
+        self.author = author
+        self.coverURL = coverURL
+        self.sourceName = sourceName
         self.lastReadChapter = 0
+        self.lastReadAt = nil
     }
 }

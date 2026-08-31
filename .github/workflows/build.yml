@@ -24,48 +24,30 @@ jobs:
       - name: Resolve Swift packages
         run: |
           set -euo pipefail
-          xcrun xcodebuild -resolvePackageDependencies \
-            -project YueduReader.xcodeproj \
-            -scheme YueduReader \
-            -clonedSourcePackagesDirPath "$RUNNER_TEMP/SourcePackages"
+          xcrun xcodebuild -resolvePackageDependencies -project YueduReader.xcodeproj -scheme YueduReader -clonedSourcePackagesDirPath "$RUNNER_TEMP/SourcePackages"
 
       - name: Build without code signing
+        shell: bash
         run: |
           set -o pipefail
           log="$RUNNER_TEMP/xcodebuild.log"
           summary="$RUNNER_TEMP/xcodebuild-summary.txt"
           set +e
-          xcrun xcodebuild \
-            -project YueduReader.xcodeproj \
-            -scheme YueduReader \
-            -destination 'generic/platform=iOS' \
-            -configuration Release \
-            -derivedDataPath "$RUNNER_TEMP/DerivedData" \
-            -clonedSourcePackagesDirPath "$RUNNER_TEMP/SourcePackages" \
-            CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGN_IDENTITY='' \
-            DEVELOPMENT_TEAM='' \
-            clean build 2>&1 | tee "$log"
+          xcrun xcodebuild -project YueduReader.xcodeproj -scheme YueduReader -destination 'generic/platform=iOS' -configuration Release -derivedDataPath "$RUNNER_TEMP/DerivedData" -clonedSourcePackagesDirPath "$RUNNER_TEMP/SourcePackages" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY='' DEVELOPMENT_TEAM='' clean build 2>&1 | tee "$log"
           status=${PIPESTATUS[0]}
           {
-            echo '## xcodebuild diagnostics'
-            echo
-            echo "xcodebuild exit code: $status"
-            echo
-            echo '### Errors'
-            grep -E '(^|[[:space:]])error:' "$log" || true
-            echo
-            echo '### Last 100 log lines'
-            tail -n 100 "$log"
+            echo '## xcodebuild diagnostics'; echo; echo "xcodebuild exit code: $status"; echo
+            echo '### Compiler errors and warnings';
+            grep -E '(^|[[:space:]])(error|warning):' "$log" || true; echo
+            echo '### Last 200 log lines'; tail -n 200 "$log"
           } | tee "$summary" >> "$GITHUB_STEP_SUMMARY"
           exit "$status"
 
-      - name: Upload build log on failure
+      - name: Upload build diagnostics on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: xcodebuild-log
+          name: xcodebuild-diagnostics
           path: |
             ${{ runner.temp }}/xcodebuild.log
             ${{ runner.temp }}/xcodebuild-summary.txt
@@ -78,8 +60,7 @@ jobs:
           test -n "$app"
           ipa_dir="$RUNNER_TEMP/ipa"
           output="$GITHUB_WORKSPACE/Payload/YueduReader.unsigned.ipa"
-          rm -rf "$ipa_dir"
-          mkdir -p "$ipa_dir/Payload" "$(dirname "$output")"
+          rm -rf "$ipa_dir"; mkdir -p "$ipa_dir/Payload" "$(dirname "$output")"
           cp -R "$app" "$ipa_dir/Payload/YueduReader.app"
           (cd "$ipa_dir" && zip -qry "$output" Payload)
           test -f "$output"
