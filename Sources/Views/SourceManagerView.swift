@@ -14,17 +14,17 @@ struct SourceManagerView: View {
         NavigationStack {
             List {
                 Section {
+                    Button { restoreBuiltInSources() } label: { Label("恢复默认内置书源", systemImage: "arrow.clockwise") }
                     Button { showingFileImporter = true } label: { Label("从本地文件导入", systemImage: "doc.badge.plus") }
                     Button { showingAddSource = true } label: { Label("手动添加书源", systemImage: "plus.circle") }
-                } header: { Text("本地导入") } footer: { Text("选择书源 JSON 文件，可一次导入多个书源。") }
+                } header: { Text("书源管理") } footer: { Text("恢复内置书源会按名称和地址去重。") }
                 if sources.isEmpty {
                     ContentUnavailableView("暂无书源", systemImage: "server.rack", description: Text("添加一个书源后即可搜索书籍。"))
                 } else {
                     Section("已添加的书源") {
                         ForEach(sources) { source in
                             Toggle(source.name, isOn: Binding(get: { source.enabled }, set: { source.enabled = $0 }))
-                        }
-                        .onDelete { offsets in
+                        }.onDelete { offsets in
                             for offset in offsets { modelContext.delete(sources[offset]) }
                             try? modelContext.save()
                         }
@@ -32,60 +32,49 @@ struct SourceManagerView: View {
                 }
             }
             .navigationTitle("书源管理")
-            .toolbar { ToolbarItem(placement: .topBarTrailing) { Button { showingAddSource = true } label: { Image(systemName: "plus") } } }
             .sheet(isPresented: $showingAddSource) { AddSourceView() }
-            .fileImporter(isPresented: $showingFileImporter, allowedContentTypes: [.json], allowsMultipleSelection: true) { result in
-                importSources(from: result)
-            }
-            .alert("本地导入", isPresented: Binding(get: { importMessage != nil }, set: { if !$0 { importMessage = nil } })) {
-                Button("确定") { importMessage = nil }
-            } message: { Text(importMessage ?? "") }
+            .fileImporter(isPresented: $showingFileImporter, allowedContentTypes: [.json, .plainText, .data], allowsMultipleSelection: true) { result in importSources(from: result) }
+            .alert("书源管理", isPresented: Binding(get: { importMessage != nil }, set: { if !$0 { importMessage = nil } })) { Button("确定") { importMessage = nil } } message: { Text(importMessage ?? "") }
         }
+    }
+
+    private func restoreBuiltInSources() {
+        guard let url = Bundle.main.url(forResource: "DefaultSources", withExtension: "json"), let data = try? Data(contentsOf: url) else { importMessage = "找不到内置书源文件。"; return }
+        do {
+            let items = try JSONSerialization.jsonObject(with: data) as? [[String: Any]] ?? []
+            var added = 0
+            for item in items {
+                let name = item["bookSourceName"] as? String ?? "未命名书源"
+                let base = item["bookSourceUrl"] as? String ?? ""
+                guard !base.isEmpty else { continue }
+                let duplicate = sources.contains { $0.name == name || $0.baseURL == base }
+                if !duplicate {
+                    let raw = (try? JSONSerialization.data(withJSONObject: item)).flatMap { String(data: $0, encoding: .utf8) } ?? ""
+                    modelContext.insert(BookSource(name: name, baseURL: base, searchURL: item["searchUrl"] as? String ?? "", rawJSON: raw)); added += 1
+                }
+            }
+            try modelContext.save(); importMessage = "已恢复内置书源：新增 \(added) 个。"
+        } catch { importMessage = "恢复失败：\(error.localizedDescription)" }
     }
 
     private func importSources(from result: Result<[URL], Error>) {
         do {
-            let urls = try result.get()
-            var imported = 0
-            for url in urls {
-                let hasAccess = url.startAccessingSecurityScopedResource()
-                defer { if hasAccess { url.stopAccessingSecurityScopedResource() } }
-                let data = try Data(contentsOf: url)
-                for source in try BookSourceFileParser.parse(data: data) {
-                    modelContext.insert(source)
-                    imported += 1
-                }
-            }
-            try modelContext.save()
-            importMessage = imported > 0 ? "已成功导入 \(imported) 个书源。" : "文件中没有找到可导入的书源。"
-        } catch {
-            importMessage = "导入失败：\(error.localizedDescription)"
-        }
+            var count = 0
+            for url in try result.get() { let access = url.startAccessingSecurityScopedResource(); defer { if access { url.stopAccessingSecurityScopedResource() } }; for source in try BookSourceFileParser.parse(data: Data(contentsOf: url)) { modelContext.insert(source); count += 1 } }
+            try modelContext.save(); importMessage = "已成功导入 \(count) 个书源。"
+        } catch { importMessage = "导入失败：\(error.localizedDescription)" }
     }
 }
 
 private enum BookSourceFileParser {
     static func parse(data: Data) throws -> [BookSource] {
         let object = try JSONSerialization.jsonObject(with: data)
-        let dictionaries: [[String: Any]]
-        if let array = object as? [[String: Any]] { dictionaries = array }
-        else if let dictionary = object as? [String: Any], let nested = dictionary["bookSourceComment"] as? [[String: Any]] { dictionaries = nested }
-        else if let dictionary = object as? [String: Any] { dictionaries = [dictionary] }
-        else { throw ImportError.invalidFormat }
-        return dictionaries.compactMap { item in
-            let name = string(item, keys: ["bookSourceName", "name", "sourceName"]) ?? "未命名书源"
-            let baseURL = string(item, keys: ["bookSourceUrl", "baseURL", "baseUrl", "url"]) ?? ""
-            let searchURL = string(item, keys: ["searchUrl", "searchURL"]) ?? ""
-            guard !baseURL.isEmpty || !searchURL.isEmpty else { return nil }
-            return BookSource(name: name, baseURL: baseURL, searchURL: searchURL, enabled: (item["enabled"] as? Bool) ?? true)
+        let items = (object as? [[String: Any]]) ?? (object as? [String: Any]).map { [$0] } ?? []
+        return items.compactMap { item in
+            let name = item["bookSourceName"] as? String ?? item["name"] as? String ?? "未命名书源"
+            let base = item["bookSourceUrl"] as? String ?? item["baseURL"] as? String ?? item["url"] as? String ?? ""
+            guard !base.isEmpty else { return nil }
+            return BookSource(name: name, baseURL: base, searchURL: item["searchUrl"] as? String ?? "", enabled: item["enabled"] as? Bool ?? true)
         }
-    }
-    private static func string(_ item: [String: Any], keys: [String]) -> String? {
-        for key in keys { if let value = item[key] as? String, !value.isEmpty { return value } }
-        return nil
-    }
-    private enum ImportError: LocalizedError {
-        case invalidFormat
-        var errorDescription: String? { "JSON 格式无效，请选择书源 JSON 文件。" }
     }
 }
