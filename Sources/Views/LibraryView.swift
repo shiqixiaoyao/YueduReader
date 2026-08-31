@@ -14,10 +14,9 @@ struct LibraryView: View {
         NavigationStack {
             List {
                 Section("启用的书源（\(enabledSources.count)）") {
-                    if enabledSources.isEmpty { Text("暂无启用书源，请在设置 → 书源管理中恢复或添加。\").foregroundStyle(.secondary) }
+                    if enabledSources.isEmpty { Text("暂无启用书源，请在设置 → 书源管理中恢复或添加。").foregroundStyle(.secondary) }
                     ForEach(enabledSources) { source in
-                        Label(source.name, systemImage: "server.rack")
-                            .lineLimit(1)
+                        Label(source.name, systemImage: "server.rack").lineLimit(1)
                     }
                 }
                 if isSearching { Section { ProgressView("正在搜索 \(enabledSources.count) 个书源…") } }
@@ -44,7 +43,6 @@ struct LibraryView: View {
         guard !query.isEmpty else { results = []; status = ""; return }
         isSearching = true; status = ""
         var collected: [BookSearchResult] = []
-        var failures = 0
         await withTaskGroup(of: [BookSearchResult].self) { group in
             for source in enabledSources { group.addTask { (try? await BookSourceEngine.search(query: query, source: source)) ?? [] } }
             for await values in group { collected.append(contentsOf: values) }
