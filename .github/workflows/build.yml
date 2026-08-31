@@ -8,6 +8,9 @@ on:
 permissions:
   contents: write
 
+env:
+  IPA_PATH: Payload/YueduReader.unsigned.ipa
+
 jobs:
   build:
     runs-on: macos-15
@@ -37,8 +40,7 @@ jobs:
           status=${PIPESTATUS[0]}
           {
             echo '## xcodebuild diagnostics'; echo; echo "xcodebuild exit code: $status"; echo
-            echo '### Compiler errors and warnings';
-            grep -E '(^|[[:space:]])(error|warning):' "$log" || true; echo
+            echo '### Compiler errors and warnings'; grep -E '(^|[[:space:]])(error|warning):' "$log" || true; echo
             echo '### Last 200 log lines'; tail -n 200 "$log"
           } | tee "$summary" >> "$GITHUB_STEP_SUMMARY"
           exit "$status"
@@ -59,24 +61,30 @@ jobs:
           app=$(find "$RUNNER_TEMP/DerivedData/Build/Products" -type d -name 'YueduReader.app' -print -quit)
           test -n "$app"
           ipa_dir="$RUNNER_TEMP/ipa"
-          output="$GITHUB_WORKSPACE/Payload/YueduReader.unsigned.ipa"
-          rm -rf "$ipa_dir"; mkdir -p "$ipa_dir/Payload" "$(dirname "$output")"
+          rm -rf "$ipa_dir"
+          mkdir -p "$ipa_dir/Payload" "$GITHUB_WORKSPACE/Payload"
           cp -R "$app" "$ipa_dir/Payload/YueduReader.app"
-          (cd "$ipa_dir" && zip -qry "$output" Payload)
-          test -f "$output"
+          (cd "$ipa_dir" && zip -qry "$GITHUB_WORKSPACE/$IPA_PATH" Payload)
+          test -f "$GITHUB_WORKSPACE/$IPA_PATH"
 
       - name: Upload unsigned IPA artifact
         uses: actions/upload-artifact@v4
         with:
           name: YueduReader.unsigned
-          path: Payload/YueduReader.unsigned.ipa
+          path: ${{ env.IPA_PATH }}
           if-no-files-found: error
 
-      - name: Create or update GitHub release
+      - name: Create or update GitHub prerelease
+        if: success()
         uses: softprops/action-gh-release@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tag_name: ci-latest
           name: YueduReader unsigned CI build
+          body: Automated unsigned iOS IPA from the latest successful main build.
           prerelease: true
-          files: Payload/YueduReader.unsigned.ipa
+          make_latest: false
+          files: ${{ env.IPA_PATH }}
           fail_on_unmatched_files: true
+          overwrite_files: true
