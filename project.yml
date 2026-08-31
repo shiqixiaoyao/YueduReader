@@ -14,6 +14,8 @@ targets:
     deploymentTarget: "17.0"
     sources:
       - path: Sources
+    resources:
+      - path: Sources/Resources
     dependencies:
       - package: SwiftSoup
         product: SwiftSoup
