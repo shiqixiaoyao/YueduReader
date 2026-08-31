@@ -7,7 +7,6 @@ final class Chapter {
     var index: Int
     var content: String
     var url: String
-    @Relationship(inverse: \Book.chapters)
     var book: Book?
 
     init(title: String, index: Int, content: String = "", url: String = "", book: Book? = nil) {
