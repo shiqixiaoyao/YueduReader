@@ -1,4 +1,4 @@
-name: Build Unsigned iOS IPA
+name: 构建未签名 iOS 安装包
 
 on:
   push:
@@ -15,21 +15,21 @@ jobs:
   build:
     runs-on: macos-15
     steps:
-      - name: Check out source
+      - name: 检出源代码
         uses: actions/checkout@v4
 
-      - name: Generate Xcode project
+      - name: 生成 Xcode 项目
         run: |
           set -euo pipefail
           brew install xcodegen
           xcodegen generate
 
-      - name: Resolve Swift packages
+      - name: 解析 Swift 软件包
         run: |
           set -euo pipefail
           xcrun xcodebuild -resolvePackageDependencies -project YueduReader.xcodeproj -scheme YueduReader -clonedSourcePackagesDirPath "$RUNNER_TEMP/SourcePackages"
 
-      - name: Build without code signing
+      - name: 构建未签名版本
         shell: bash
         run: |
           set -o pipefail
@@ -39,23 +39,23 @@ jobs:
           xcrun xcodebuild -project YueduReader.xcodeproj -scheme YueduReader -destination 'generic/platform=iOS' -configuration Release -derivedDataPath "$RUNNER_TEMP/DerivedData" -clonedSourcePackagesDirPath "$RUNNER_TEMP/SourcePackages" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY='' DEVELOPMENT_TEAM='' clean build 2>&1 | tee "$log"
           status=${PIPESTATUS[0]}
           {
-            echo '## xcodebuild diagnostics'; echo; echo "xcodebuild exit code: $status"; echo
-            echo '### Compiler errors and warnings'; grep -E '(^|[[:space:]])(error|warning):' "$log" || true; echo
-            echo '### Last 200 log lines'; tail -n 200 "$log"
+            echo '## Xcode 构建诊断'; echo; echo "xcodebuild 退出代码：$status"; echo
+            echo '### 编译错误和警告'; grep -E '(^|[[:space:]])(error|warning):' "$log" || true; echo
+            echo '### 最后 200 行日志'; tail -n 200 "$log"
           } | tee "$summary" >> "$GITHUB_STEP_SUMMARY"
           exit "$status"
 
-      - name: Upload build diagnostics on failure
+      - name: 构建失败时上传诊断信息
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: xcodebuild-diagnostics
+          name: xcodebuild-诊断信息
           path: |
             ${{ runner.temp }}/xcodebuild.log
             ${{ runner.temp }}/xcodebuild-summary.txt
           if-no-files-found: ignore
 
-      - name: Package unsigned IPA
+      - name: 打包未签名 IPA
         run: |
           set -euo pipefail
           app=$(find "$RUNNER_TEMP/DerivedData/Build/Products" -type d -name 'YueduReader.app' -print -quit)
@@ -67,22 +67,22 @@ jobs:
           (cd "$ipa_dir" && zip -qry "$GITHUB_WORKSPACE/$IPA_PATH" Payload)
           test -f "$GITHUB_WORKSPACE/$IPA_PATH"
 
-      - name: Upload unsigned IPA artifact
+      - name: 上传未签名 IPA 构建产物
         uses: actions/upload-artifact@v4
         with:
           name: YueduReader.unsigned
           path: ${{ env.IPA_PATH }}
           if-no-files-found: error
 
-      - name: Create or update GitHub prerelease
+      - name: 创建或更新 GitHub 预发布版本
         if: success()
         uses: softprops/action-gh-release@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tag_name: ci-latest
-          name: YueduReader unsigned CI build
-          body: Automated unsigned iOS IPA from the latest successful main build.
+          name: 悦读｜未签名 iOS 测试版
+          body: 本版本由 main 分支最近一次成功的 CI 构建自动生成，包含未签名的 iOS IPA，仅用于测试和开发。
           prerelease: true
           make_latest: false
           files: ${{ env.IPA_PATH }}
