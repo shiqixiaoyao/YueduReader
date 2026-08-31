@@ -14,7 +14,6 @@ actor NetworkManager {
         let (data, response) = try await session.data(for: request)
         guard let http = response as? HTTPURLResponse else { throw URLError(.badServerResponse) }
         guard 200..<300 ~= http.statusCode else { throw NSError(domain: "YueduReader", code: http.statusCode, userInfo: [NSLocalizedDescriptionKey: "HTTP \(http.statusCode)"]) }
-        let encoding = String.Encoding(rawValue: CFStringConvertEncodingToNSStringEncoding(CFStringConvertIANACharSetNameToEncoding((http.textEncodingName ?? "utf-8") as CFString)))
-        return String(data: data, encoding: encoding) ?? String(decoding: data, as: UTF8.self)
+        return String(decoding: data, as: UTF8.self)
     }
 }
