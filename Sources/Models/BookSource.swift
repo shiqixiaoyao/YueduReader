@@ -8,8 +8,9 @@ final class BookSource {
     var searchURL: String
     var enabled: Bool
     var updatedAt: Date
+    var rawJSON: String
 
-    init(name: String, baseURL: String, searchURL: String = "", enabled: Bool = true) {
-        self.name = name; self.baseURL = baseURL; self.searchURL = searchURL; self.enabled = enabled; self.updatedAt = .now
+    init(name: String, baseURL: String, searchURL: String = "", enabled: Bool = true, rawJSON: String = "") {
+        self.name = name; self.baseURL = baseURL; self.searchURL = searchURL; self.enabled = enabled; self.updatedAt = .now; self.rawJSON = rawJSON
     }
 }
