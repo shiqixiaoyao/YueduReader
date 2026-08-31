@@ -11,6 +11,11 @@ final class BookSource {
     var rawJSON: String
 
     init(name: String, baseURL: String, searchURL: String = "", enabled: Bool = true, rawJSON: String = "") {
-        self.name = name; self.baseURL = baseURL; self.searchURL = searchURL; self.enabled = enabled; self.updatedAt = .now; self.rawJSON = rawJSON
+        self.name = name
+        self.baseURL = baseURL
+        self.searchURL = searchURL
+        self.enabled = enabled
+        self.updatedAt = .now
+        self.rawJSON = rawJSON
     }
 }
