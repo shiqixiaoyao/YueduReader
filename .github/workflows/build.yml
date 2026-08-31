@@ -34,7 +34,7 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY='' \
             DEVELOPMENT_TEAM='' \
-            build 2>&1 | tee "$RUNNER_TEMP/xcodebuild.log"
+            build 2>&1 | tee "$RUNNER_TEMP/xcodebuild.log" || (cat "$RUNNER_TEMP/xcodebuild.log" && exit 1)
 
       - name: Upload build log on failure
         if: failure()
