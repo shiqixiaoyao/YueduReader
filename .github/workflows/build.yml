@@ -76,9 +76,13 @@ jobs:
           set -euo pipefail
           app=$(find "$RUNNER_TEMP/DerivedData/Build/Products" -type d -name 'YueduReader.app' -print -quit)
           test -n "$app"
-          mkdir -p "$RUNNER_TEMP/ipa/Payload"
-          cp -R "$app" "$RUNNER_TEMP/ipa/Payload/YueduReader.app"
-          (cd "$RUNNER_TEMP/ipa" && zip -qry "$GITHUB_WORKSPACE/Payload/YueduReader.unsigned.ipa" Payload)
+          ipa_dir="$RUNNER_TEMP/ipa"
+          output="$GITHUB_WORKSPACE/Payload/YueduReader.unsigned.ipa"
+          rm -rf "$ipa_dir"
+          mkdir -p "$ipa_dir/Payload" "$(dirname "$output")"
+          cp -R "$app" "$ipa_dir/Payload/YueduReader.app"
+          (cd "$ipa_dir" && zip -qry "$output" Payload)
+          test -f "$output"
 
       - name: Upload unsigned IPA artifact
         uses: actions/upload-artifact@v4
