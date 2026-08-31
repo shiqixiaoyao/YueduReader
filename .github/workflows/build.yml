@@ -15,6 +15,12 @@ jobs:
       - name: Check out source
         uses: actions/checkout@v4
 
+      - name: Generate Xcode project
+        run: |
+          set -euo pipefail
+          brew install xcodegen
+          xcodegen generate
+
       - name: Build without code signing
         run: |
           set -euo pipefail
