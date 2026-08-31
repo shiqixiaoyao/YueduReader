@@ -24,7 +24,7 @@ jobs:
       - name: Build without code signing
         run: |
           set -euo pipefail
-          xcodebuild -project Yuedu-Reader.xcodeproj \
+          xcodebuild -project YueduReader.xcodeproj \
             -scheme YueduReader \
             -configuration Release \
             -sdk iphoneos \
