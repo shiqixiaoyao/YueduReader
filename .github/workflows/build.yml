@@ -1,0 +1,56 @@
+name: Build Unsigned iOS IPA
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Build without code signing
+        run: |
+          set -euo pipefail
+          xcodebuild -project Yuedu-Reader.xcodeproj \
+            -scheme YueduReader \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath "$RUNNER_TEMP/DerivedData" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY='' \
+            DEVELOPMENT_TEAM='' \
+            build
+
+      - name: Package unsigned IPA
+        run: |
+          set -euo pipefail
+          app=$(find "$RUNNER_TEMP/DerivedData/Build/Products" -type d -name 'YueduReader.app' -print -quit)
+          test -n "$app"
+          mkdir -p "$RUNNER_TEMP/ipa/Payload"
+          cp -R "$app" "$RUNNER_TEMP/ipa/Payload/YueduReader.app"
+          (cd "$RUNNER_TEMP/ipa" && zip -qry "$GITHUB_WORKSPACE/Payload/YueduReader.unsigned.ipa" Payload)
+
+      - name: Upload unsigned IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: YueduReader.unsigned
+          path: Payload/YueduReader.unsigned.ipa
+          if-no-files-found: error
+
+      - name: Create or update GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ci-latest
+          name: YueduReader unsigned CI build
+          prerelease: true
+          files: Payload/YueduReader.unsigned.ipa
+          fail_on_unmatched_files: true
